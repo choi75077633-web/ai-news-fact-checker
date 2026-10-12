@@ -304,7 +304,7 @@ body {
   justify-content: center;
   flex-wrap: wrap;
   gap: 10px;
-  max-width: 600px;
+  max-width: 650px;
   margin: 0 auto;
 }
 
@@ -411,6 +411,139 @@ body {
   line-height: 1.6;
 }
 
+/* ========================================= */
+/* 2단계: 낚시성 제목 탐지 카드 스타일 */
+/* ========================================= */
+.clickbait-card {
+  border-left: 4px solid #8b5cf6;
+  background: linear-gradient(to right, #ffffff, #faf5ff);
+}
+
+.clickbait-tag {
+  color: #7c3aed;
+  background-color: #f3e8ff;
+}
+
+.clickbait-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.clickbait-title-group h3 {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1e1b4b;
+}
+
+.clickbait-badges {
+  display: flex;
+  gap: 8px;
+}
+
+.badge-neutral {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background-color: #f1f5f9;
+  color: #475569;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-risk-low {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background-color: #ecfdf5;
+  color: #065f46;
+  font-weight: 700;
+  border: 1px solid #a7f3d0;
+}
+
+.badge-risk-mid {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background-color: #fffbeb;
+  color: #92400e;
+  font-weight: 700;
+  border: 1px solid #fde68a;
+}
+
+.badge-risk-high {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background-color: #fef2f2;
+  color: #991b1b;
+  font-weight: 700;
+  border: 1px solid #fecaca;
+}
+
+.clickbait-meter-wrapper {
+  margin-bottom: 16px;
+}
+
+.clickbait-meter-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: #475569;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.meter-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
+  border-radius: 9999px;
+  transition: width 0.5s ease-out;
+}
+
+.clickbait-summary {
+  font-size: 14.5px;
+  color: #1e293b;
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.clickbait-reasons {
+  background-color: rgba(255, 255, 255, 0.7);
+  border-radius: 8px;
+  padding: 12px 16px;
+  border: 1px solid #e9d5ff;
+}
+
+.reasons-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b21a8;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.clickbait-reasons ul {
+  padding-left: 18px;
+  font-size: 13px;
+  color: #334155;
+}
+
+.clickbait-reasons li {
+  margin-bottom: 4px;
+}
+
 /* 주장 리스트 헤더 */
 .claims-header {
   display: flex;
@@ -441,7 +574,7 @@ body {
   border-radius: 14px;
   padding: 24px;
   box-shadow: var(--shadow-sm);
-  margin-bottom: 20px;
+  margin-bottom: 24px;
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -537,10 +670,11 @@ body {
   line-height: 1.6;
 }
 
-/* 출처(Sources) 섹션 */
+/* 출처(Sources) 섹션 (Google Fact Check) */
 .sources-section {
   border-top: 1px dashed var(--border-color);
   padding-top: 14px;
+  margin-bottom: 14px;
 }
 
 .sources-title {
@@ -624,6 +758,87 @@ body {
   padding: 6px 0;
 }
 
+/* ========================================= */
+/* 2단계: 네이버 뉴스 언론사 교차 보도 스타일 */
+/* ========================================= */
+.cross-news-section {
+  border-top: 1px solid #f1f5f9;
+  padding-top: 14px;
+}
+
+.cross-news-title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0369a1;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cross-news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cross-news-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background-color: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 8px;
+  padding: 10px 14px;
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.15s;
+}
+
+.cross-news-item:hover {
+  background-color: #e0f2fe;
+  border-color: #7dd3fc;
+  transform: translateX(2px);
+}
+
+.cross-news-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.cross-news-item-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0369a1;
+}
+
+.cross-news-date {
+  font-size: 11.5px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.cross-news-desc {
+  font-size: 12.5px;
+  color: #334155;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.cross-news-guide {
+  font-size: 12.5px;
+  color: #0284c7;
+  background-color: #f0f9ff;
+  border: 1px dashed #7dd3fc;
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
 /* 푸터 */
 .app-footer {
   background-color: #0f172a;
@@ -653,6 +868,10 @@ body {
   }
 
   .claim-top {
+    flex-direction: column;
+  }
+
+  .clickbait-header {
     flex-direction: column;
   }
 

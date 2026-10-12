@@ -17,7 +17,7 @@
         <span class="logo-icon">🔍</span>
         <div>
           <h1 class="logo-title">AI 뉴스 사실 확인 도우미</h1>
-          <p class="logo-subtitle">Google Fact Check API & Gemini 기반 증거 중심 팩트체크</p>
+          <p class="logo-subtitle">Google Fact Check & 네이버 뉴스 교차 검증 & 낚시성 제목 탐지</p>
         </div>
       </div>
       <div class="header-badges">
@@ -31,7 +31,7 @@
     <div class="disclaimer-banner">
       <div class="banner-icon">⚠️</div>
       <div class="banner-text">
-        <strong>[안내 및 면책 조항]</strong> 본 서비스의 AI 판단은 외부 공인 팩트체크 기관의 데이터를 기반으로 한 <strong>참고용 자료</strong>이며, 최종 확인은 제공된 출처 링크를 통해 직접 하셔야 합니다.
+        <strong>[안내 및 면책 조항]</strong> 본 서비스의 AI 판단은 외부 공인 팩트체크 기관 및 언론사 보도를 대조한 <strong>참고용 자료</strong>이며, 최종 확인은 제공된 출처 링크를 통해 직접 하셔야 합니다.
       </div>
     </div>
 
@@ -57,12 +57,12 @@
           <span class="sample-label">빠른 테스트 예시:</span>
           <button type="button" class="btn-sample" data-sample="covid">코로나 백신 마이크로칩 루머</button>
           <button type="button" class="btn-sample" data-sample="climate">지구 온난화와 북극 빙하</button>
-          <button type="button" class="btn-sample" data-sample="korea">한국 팩트체크 검색어</button>
+          <button type="button" class="btn-sample" data-sample="clickbait">낚시성 제목 기사 예시</button>
         </div>
 
         <div class="form-actions">
           <button type="submit" id="submitBtn" class="btn-primary">
-            <span class="btn-text">사실 확인 검증 시작</span>
+            <span class="btn-text">사실 확인 & 낚시성 검증 시작</span>
             <span class="btn-icon">⚡</span>
           </button>
         </div>
@@ -73,11 +73,11 @@
     <section id="loadingSection" class="loading-section hidden">
       <div class="spinner"></div>
       <h3 id="loadingStatusText">기사 내용을 분석하고 있습니다...</h3>
-      <p class="loading-subtext">Gemini가 핵심 주장을 추출하고 Google Fact Check API를 통해 실제 보도 근거를 조회합니다.</p>
+      <p class="loading-subtext">Gemini와 Fact Check API, 네이버 뉴스가 함께 교차 검증을 진행합니다.</p>
       <div class="loading-steps">
         <div class="step-item active" id="step1">1. 본문 분석 및 정제</div>
-        <div class="step-item" id="step2">2. 핵심 주장 추출 (Gemini)</div>
-        <div class="step-item" id="step3">3. 공인 근거 수집 (Fact Check API)</div>
+        <div class="step-item" id="step2">2. 낚시성 제목 탐지 및 주장 추출</div>
+        <div class="step-item" id="step3">3. 공인 Fact Check & 네이버 뉴스 수집</div>
         <div class="step-item" id="step4">4. 주장 vs 근거 대조 판정</div>
       </div>
     </section>
@@ -94,7 +94,7 @@
 
     <!-- 결과 섹션 -->
     <section id="resultSection" class="result-section hidden">
-      <!-- 기사 개요 카드 -->
+      <!-- 1. 기사 개요 카드 -->
       <div class="card overview-card">
         <div class="overview-header">
           <span class="section-tag">분석 대상 기사</span>
@@ -109,7 +109,37 @@
         </div>
       </div>
 
-      <!-- 주장별 검증 결과 리스트 -->
+      <!-- 2. 낚시성 제목 분석 카드 (2단계 신규) -->
+      <div id="clickbaitCard" class="card clickbait-card">
+        <div class="clickbait-header">
+          <div class="clickbait-title-group">
+            <span class="section-tag clickbait-tag">2단계 신규 기능</span>
+            <h3>🎣 낚시성 제목(Clickbait) 탐지 결과</h3>
+          </div>
+          <div class="clickbait-badges">
+            <span id="clickbaitToneBadge" class="badge-neutral">중립적/보도형</span>
+            <span id="clickbaitRiskBadge" class="badge-risk-low">위험도: 낮음(신뢰)</span>
+          </div>
+        </div>
+        <div class="clickbait-body">
+          <div class="clickbait-meter-wrapper">
+            <div class="clickbait-meter-labels">
+              <span>낚시성 위험 지수</span>
+              <strong id="clickbaitScoreText">15 / 100</strong>
+            </div>
+            <div class="meter-bar">
+              <div id="clickbaitMeterFill" class="meter-fill" style="width: 15%;"></div>
+            </div>
+          </div>
+          <p id="clickbaitSummaryText" class="clickbait-summary"></p>
+          <div id="clickbaitReasonsWrapper" class="clickbait-reasons">
+            <span class="reasons-label">주요 분석 사유:</span>
+            <ul id="clickbaitReasonsList"></ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. 주장별 검증 결과 리스트 (Google Fact Check + 네이버 뉴스 교차 검증) -->
       <div class="claims-header">
         <h3>추출된 핵심 주장별 팩트체크 판정 결과</h3>
         <span class="claims-count" id="claimsCountBadge">총 0개 주장 분석</span>
@@ -123,7 +153,7 @@
 
   <footer class="app-footer">
     <div class="container footer-container">
-      <p>AI Fact Checker &bull; Powered by Google Gemini API & Google Fact Check Tools API</p>
+      <p>AI Fact Checker &bull; Powered by Google Gemini, Fact Check Tools API & Naver News API</p>
       <p class="copyright">본 서비스는 학교 과제용 오픈 프로젝트입니다. 비상업적 학술 목적으로 제작되었습니다.</p>
     </div>
   </footer>
