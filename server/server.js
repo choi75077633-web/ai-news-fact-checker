@@ -21,13 +21,16 @@ app.use('/api', require('./routes/check'));
 app.get('/api/health', (req, res) => {
   const hasGeminiKey = !!process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here';
   const hasFactCheckKey = !!process.env.FACT_CHECK_API_KEY && process.env.FACT_CHECK_API_KEY !== 'your_google_fact_check_api_key_here';
+  const hasNaverKey = !!process.env.NAVER_CLIENT_ID && process.env.NAVER_CLIENT_ID !== 'your_naver_client_id_here' &&
+                      !!process.env.NAVER_CLIENT_SECRET && process.env.NAVER_CLIENT_SECRET !== 'your_naver_client_secret_here';
 
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     apiKeysConfigured: {
       gemini: hasGeminiKey,
-      factCheck: hasFactCheckKey
+      factCheck: hasFactCheckKey,
+      naver: hasNaverKey
     }
   });
 });
