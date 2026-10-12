@@ -14,6 +14,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // 정적 파일 서빙 (프론트엔드)
 app.use(express.static(path.join(__dirname, '../public')));
 
+// 라우트 등록
+app.use('/api', require('./routes/check'));
+
 // 헬스체크 엔드포인트
 app.get('/api/health', (req, res) => {
   const hasGeminiKey = !!process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'your_gemini_api_key_here';
