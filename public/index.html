@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 뉴스 사실 확인 도우미 | Fact Checker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- 상단 네비게이션 / 헤더 -->
+  <header class="app-header">
+    <div class="container header-container">
+      <div class="logo-area">
+        <span class="logo-icon">🔍</span>
+        <div>
+          <h1 class="logo-title">AI 뉴스 사실 확인 도우미</h1>
+          <p class="logo-subtitle">Google Fact Check API & Gemini 기반 증거 중심 팩트체크</p>
+        </div>
+      </div>
+      <div class="header-badges">
+        <span class="badge api-badge" id="apiKeyStatusBadge">API 상태 확인 중...</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="container main-content">
+    <!-- 필수 고지 문구 배너 (원칙 준수) -->
+    <div class="disclaimer-banner">
+      <div class="banner-icon">⚠️</div>
+      <div class="banner-text">
+        <strong>[안내 및 면책 조항]</strong> 본 서비스의 AI 판단은 외부 공인 팩트체크 기관의 데이터를 기반으로 한 <strong>참고용 자료</strong>이며, 최종 확인은 제공된 출처 링크를 통해 직접 하셔야 합니다.
+      </div>
+    </div>
+
+    <!-- 입력 섹션 -->
+    <section class="card input-card">
+      <div class="card-header">
+        <h2>검증할 뉴스 기사 또는 문장 입력</h2>
+        <p>인터넷 기사 URL을 붙여넣거나, 검증을 원하는 뉴스 텍스트를 직접 입력해 주세요.</p>
+      </div>
+
+      <form id="checkForm">
+        <div class="input-group">
+          <textarea 
+            id="textOrUrlInput" 
+            placeholder="기사 링크(URL)를 입력하거나 기사 본문/주장 텍스트를 입력하세요.&#10;예: https://news.example.com/article/12345 또는 '최근 정부 발표에 따르면 ...'"
+            rows="5"
+            required
+          ></textarea>
+        </div>
+
+        <!-- 빠른 예시 버튼들 -->
+        <div class="quick-samples">
+          <span class="sample-label">빠른 테스트 예시:</span>
+          <button type="button" class="btn-sample" data-sample="covid">코로나 백신 마이크로칩 루머</button>
+          <button type="button" class="btn-sample" data-sample="climate">지구 온난화와 북극 빙하</button>
+          <button type="button" class="btn-sample" data-sample="korea">한국 팩트체크 검색어</button>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" id="submitBtn" class="btn-primary">
+            <span class="btn-text">사실 확인 검증 시작</span>
+            <span class="btn-icon">⚡</span>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 로딩 인디케이터 -->
+    <section id="loadingSection" class="loading-section hidden">
+      <div class="spinner"></div>
+      <h3 id="loadingStatusText">기사 내용을 분석하고 있습니다...</h3>
+      <p class="loading-subtext">Gemini가 핵심 주장을 추출하고 Google Fact Check API를 통해 실제 보도 근거를 조회합니다.</p>
+      <div class="loading-steps">
+        <div class="step-item active" id="step1">1. 본문 분석 및 정제</div>
+        <div class="step-item" id="step2">2. 핵심 주장 추출 (Gemini)</div>
+        <div class="step-item" id="step3">3. 공인 근거 수집 (Fact Check API)</div>
+        <div class="step-item" id="step4">4. 주장 vs 근거 대조 판정</div>
+      </div>
+    </section>
+
+    <!-- 에러 메시지 알림 -->
+    <section id="errorSection" class="card error-card hidden">
+      <div class="error-header">
+        <span class="error-icon">❌</span>
+        <h3 id="errorMessageTitle">검증 중 문제가 발생했습니다</h3>
+      </div>
+      <p id="errorMessageDesc"></p>
+      <button type="button" class="btn-secondary" id="errorRetryBtn">다시 시도하기</button>
+    </section>
+
+    <!-- 결과 섹션 -->
+    <section id="resultSection" class="result-section hidden">
+      <!-- 기사 개요 카드 -->
+      <div class="card overview-card">
+        <div class="overview-header">
+          <span class="section-tag">분석 대상 기사</span>
+          <h2 id="resultArticleTitle">기사 제목</h2>
+          <div id="resultArticleLinkWrapper" class="source-link-wrapper">
+            <a href="#" id="resultArticleLink" target="_blank" rel="noopener noreferrer">원문 기사 바로가기 ↗</a>
+          </div>
+        </div>
+        <div class="overview-body">
+          <h4>기사 핵심 요약</h4>
+          <p id="resultArticleSummary"></p>
+        </div>
+      </div>
+
+      <!-- 주장별 검증 결과 리스트 -->
+      <div class="claims-header">
+        <h3>추출된 핵심 주장별 팩트체크 판정 결과</h3>
+        <span class="claims-count" id="claimsCountBadge">총 0개 주장 분석</span>
+      </div>
+
+      <div id="claimsListContainer" class="claims-list">
+        <!-- JS로 동적 렌더링 -->
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <div class="container footer-container">
+      <p>AI Fact Checker &bull; Powered by Google Gemini API & Google Fact Check Tools API</p>
+      <p class="copyright">본 서비스는 학교 과제용 오픈 프로젝트입니다. 비상업적 학술 목적으로 제작되었습니다.</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
