@@ -116,6 +116,7 @@ ${content}
  * Gemini API 권한/할당량 오류 시 작동하는 지능형 로컬 폴백 주장 추출기
  */
 function fallbackExtractClaims(title, content) {
+  const isPlaceholderTitle = !title || title.includes('직접 입력한 텍스트') || title.length < 5;
   const cleanTitle = (title || '').replace(/\[.*?\]/g, '').trim();
   const paragraphs = (content || '').split('\n').map(p => p.trim()).filter(p => p.length > 20);
 
@@ -126,13 +127,13 @@ function fallbackExtractClaims(title, content) {
     .filter(s => s.length > 15 && s.length < 150);
 
   // 통계, 발표, 사건 관련 키워드 포함 문장 우선 탐색
-  const factKeywords = ['발표', '주장', '확인', '증가', '감소', '기록', '연구', '보고서', '정부', '백신', '코로나', '동결', '지급'];
+  const factKeywords = ['백신', '마이크로칩', '칩', '5G', '빙하', '해빙', '온난화', '정부', '발표', '주장', '확인', '증가', '감소', '기록', '연구', '동결', '지급'];
   const candidates = sentences.filter(s => factKeywords.some(k => s.includes(k)));
 
   const claims = [];
 
-  if (cleanTitle && cleanTitle.length > 10) {
-    // 제목에서 물음표나 감탄사, '충격' 등 어그로 단어 정제
+  // 유효한 기사 제목이 있는 경우 첫 번째 주장으로 등록
+  if (!isPlaceholderTitle && cleanTitle.length >= 8) {
     const pureClaim = cleanTitle.replace(/^(충격|경악|발칵|속보|단독)[!?,~ ]*/i, '').replace(/[?!~]+$/, '');
     claims.push({
       claimId: 1,
@@ -142,19 +143,37 @@ function fallbackExtractClaims(title, content) {
     });
   }
 
-  const selectedSentence = candidates[0] || sentences[0] || cleanTitle;
-  if (selectedSentence && (!claims[0] || claims[0].claimText !== selectedSentence)) {
+  // 본문에서 핵심 문장 1~2개 추출
+  const primarySentence = candidates[0] || sentences[0];
+  if (primarySentence && (!claims[0] || claims[0].claimText !== primarySentence)) {
     claims.push({
       claimId: claims.length + 1,
-      claimText: selectedSentence,
-      searchQuery: selectedSentence.slice(0, 30),
-      context: '기사 본문에서 언급된 주요 주장'
+      claimText: primarySentence,
+      searchQuery: primarySentence.slice(0, 30),
+      context: '기사 본문에서 제기된 주요 사실 주장'
+    });
+  }
+
+  const secondarySentence = candidates[1] || sentences[1];
+  if (secondarySentence && secondarySentence !== primarySentence && claims.length < 2) {
+    claims.push({
+      claimId: claims.length + 1,
+      claimText: secondarySentence,
+      searchQuery: secondarySentence.slice(0, 30),
+      context: '기사 본문 세부 서술 내용'
     });
   }
 
   return {
-    articleSummary: (paragraphs[0] || cleanTitle).slice(0, 200),
-    claims: claims.slice(0, 3)
+    articleSummary: (paragraphs[0] || primarySentence || '입력된 뉴스 본문 요약').slice(0, 200),
+    claims: claims.length > 0 ? claims.slice(0, 3) : [
+      {
+        claimId: 1,
+        claimText: (content || '').slice(0, 100),
+        searchQuery: (content || '').slice(0, 30),
+        context: '입력된 텍스트 내용'
+      }
+    ]
   };
 }
 
