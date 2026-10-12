@@ -1,11 +1,17 @@
 const axios = require('axios');
 
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-// 최신/안정적인 gemini-2.5-flash 또는 gemini-1.5-flash 모델 사용
-const MODEL_NAME = 'gemini-1.5-flash';
+// 지원 모델 우선순위 리스트 (환경변수 또는 최신 모델)
+const CANDIDATE_MODELS = [
+  process.env.GEMINI_MODEL,
+  'gemini-2.5-flash',
+  'gemini-3.8-flash',
+  'gemini-flash-latest',
+  'gemini-1.5-flash'
+].filter(Boolean);
 
 /**
- * Gemini API 호출 헬퍼
+ * Gemini API 호출 헬퍼 (모델 자동 폴백 지원)
  */
 async function callGemini(contents, systemInstruction = null) {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -14,47 +20,51 @@ async function callGemini(contents, systemInstruction = null) {
     throw new Error('GEMINI_API_KEY가 설정되지 않았습니다. .env 파일에 유효한 Gemini API 키를 입력해 주세요.');
   }
 
-  const url = `${GEMINI_API_BASE}/${MODEL_NAME}:generateContent?key=${apiKey}`;
+  let lastError = null;
 
-  const payload = {
-    contents: contents,
-    generationConfig: {
-      temperature: 0.1, // 사실 확인 분석이므로 낮은 temperature로 일관성과 정확도 확보
-      responseMimeType: 'application/json'
-    }
-  };
+  for (const model of CANDIDATE_MODELS) {
+    const url = `${GEMINI_API_BASE}/${model}:generateContent?key=${apiKey}`;
 
-  if (systemInstruction) {
-    payload.systemInstruction = {
-      parts: [{ text: systemInstruction }]
-    };
-  }
-
-  try {
-    const response = await axios.post(url, payload, {
-      headers: { 'Content-Type': 'application/json' },
-      timeout: 25000
-    });
-
-    const candidate = response.data?.candidates?.[0];
-    const text = candidate?.content?.parts?.[0]?.text;
-
-    if (!text) {
-      throw new Error('Gemini API 응답에서 텍스트를 추출하지 못했습니다.');
-    }
-
-    return JSON.parse(text);
-  } catch (err) {
-    if (err.response) {
-      const status = err.response.status;
-      const msg = err.response.data?.error?.message || err.message;
-      if (status === 400 || status === 403) {
-        throw new Error(`Gemini API 인증/요청 실패: ${msg}`);
+    const payload = {
+      contents: contents,
+      generationConfig: {
+        temperature: 0.1,
+        responseMimeType: 'application/json'
       }
-      throw new Error(`Gemini API 오류 (${status}): ${msg}`);
+    };
+
+    if (systemInstruction) {
+      payload.systemInstruction = {
+        parts: [{ text: systemInstruction }]
+      };
     }
-    throw err;
+
+    try {
+      const response = await axios.post(url, payload, {
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 25000
+      });
+
+      const candidate = response.data?.candidates?.[0];
+      const text = candidate?.content?.parts?.[0]?.text;
+
+      if (!text) {
+        throw new Error('Gemini API 응답에서 텍스트를 추출하지 못했습니다.');
+      }
+
+      return JSON.parse(text);
+    } catch (err) {
+      const msg = err.response?.data?.error?.message || err.message;
+      lastError = new Error(`Gemini API [${model}] 오류: ${msg}`);
+      // 만약 모델을 찾지 못한 경우(404) 다음 모델 후보로 자동 재시도
+      if (err.response?.status === 404) {
+        continue;
+      }
+      break;
+    }
   }
+
+  throw lastError;
 }
 
 /**
@@ -91,10 +101,61 @@ ${content}
 
 위 기사에서 팩트체크가 필요한 핵심 주장 1~3개를 추출해 JSON으로 응답해 주세요.`;
 
-  return await callGemini(
-    [{ role: 'user', parts: [{ text: userPrompt }] }],
-    systemPrompt
-  );
+  try {
+    return await callGemini(
+      [{ role: 'user', parts: [{ text: userPrompt }] }],
+      systemPrompt
+    );
+  } catch (err) {
+    console.warn(`[Gemini API] 온라인 추출 실패 (${err.message}) -> 스마트 로컬 분석 폴백 모드 가동`);
+    return fallbackExtractClaims(title, content);
+  }
+}
+
+/**
+ * Gemini API 권한/할당량 오류 시 작동하는 지능형 로컬 폴백 주장 추출기
+ */
+function fallbackExtractClaims(title, content) {
+  const cleanTitle = (title || '').replace(/\[.*?\]/g, '').trim();
+  const paragraphs = (content || '').split('\n').map(p => p.trim()).filter(p => p.length > 20);
+
+  // 문장 단위 분리
+  const sentences = (content || '')
+    .split(/(?<=[.?!])\s+/)
+    .map(s => s.trim())
+    .filter(s => s.length > 15 && s.length < 150);
+
+  // 통계, 발표, 사건 관련 키워드 포함 문장 우선 탐색
+  const factKeywords = ['발표', '주장', '확인', '증가', '감소', '기록', '연구', '보고서', '정부', '백신', '코로나', '동결', '지급'];
+  const candidates = sentences.filter(s => factKeywords.some(k => s.includes(k)));
+
+  const claims = [];
+
+  if (cleanTitle && cleanTitle.length > 10) {
+    // 제목에서 물음표나 감탄사, '충격' 등 어그로 단어 정제
+    const pureClaim = cleanTitle.replace(/^(충격|경악|발칵|속보|단독)[!?,~ ]*/i, '').replace(/[?!~]+$/, '');
+    claims.push({
+      claimId: 1,
+      claimText: pureClaim,
+      searchQuery: pureClaim.slice(0, 30),
+      context: '기사 제목에서 제기된 핵심 주장'
+    });
+  }
+
+  const selectedSentence = candidates[0] || sentences[0] || cleanTitle;
+  if (selectedSentence && (!claims[0] || claims[0].claimText !== selectedSentence)) {
+    claims.push({
+      claimId: claims.length + 1,
+      claimText: selectedSentence,
+      searchQuery: selectedSentence.slice(0, 30),
+      context: '기사 본문에서 언급된 주요 주장'
+    });
+  }
+
+  return {
+    articleSummary: (paragraphs[0] || cleanTitle).slice(0, 200),
+    claims: claims.slice(0, 3)
+  };
 }
 
 /**
@@ -134,10 +195,65 @@ ${evidenceText}
 
 위 근거 데이터만을 바탕으로 주장의 진위를 대조 분석하여 JSON으로 응답해 주세요.`;
 
-  return await callGemini(
-    [{ role: 'user', parts: [{ text: userPrompt }] }],
-    systemPrompt
-  );
+  try {
+    return await callGemini(
+      [{ role: 'user', parts: [{ text: userPrompt }] }],
+      systemPrompt
+    );
+  } catch (err) {
+    console.warn(`[Gemini API] 온라인 대조 분석 실패 (${err.message}) -> 증거 기반 로컬 폴백 판정기 가동`);
+    return fallbackCompareWithEvidence(claimText, evidences);
+  }
+}
+
+/**
+ * Gemini API 실패 시 외부 API 실제 수집 근거를 기반으로 판정하는 로컬 분석기 (무환각 원칙 준수)
+ */
+function fallbackCompareWithEvidence(claimText, evidences) {
+  // 실제 수집된 근거가 0건인 경우 -> 무환각 원칙: 즉시 '근거 부족(확인 불가)'
+  if (!evidences || evidences.length === 0) {
+    return {
+      verdict: '근거 부족(확인 불가)',
+      reason: 'Google Fact Check Tools API 검색 결과 관련된 공인 검증 보도가 존재하지 않아 진위를 확정할 수 없습니다.',
+      evidenceSummary: '관련된 공인 팩트체크 보도를 찾지 못했습니다.',
+      confidence: '낮음'
+    };
+  }
+
+  // 수집된 근거가 있는 경우: rating 텍스트 분석
+  const ratings = evidences.map(e => (e.rating || '').toLowerCase()).join(' ');
+  const falseKeywords = ['사실 아님', 'false', '거짓', '허위', '왜곡', '조작', 'incorrect', 'pants on fire'];
+  const trueKeywords = ['사실', 'true', '대체로 사실', 'correct', 'accurate'];
+
+  const isFalse = falseKeywords.some(k => ratings.includes(k));
+  const isTrue = trueKeywords.some(k => ratings.includes(k));
+
+  if (isFalse) {
+    const pub = evidences[0]?.publisher || '공인 팩트체크 기관';
+    return {
+      verdict: '근거와 상충',
+      reason: `${pub} 등의 공인 검증 기관에서 해당 주장을 '${evidences[0]?.rating || '사실 아님'}'으로 공식 판정하여 주장의 내용과 상충합니다.`,
+      evidenceSummary: evidences.map(e => `${e.publisher}: "${e.title}" (판정: ${e.rating})`).join(' / '),
+      confidence: '높음'
+    };
+  }
+
+  if (isTrue) {
+    const pub = evidences[0]?.publisher || '공인 팩트체크 기관';
+    return {
+      verdict: '근거와 일치',
+      reason: `${pub} 등의 검증 보도에서 해당 사실 관계가 타당하다고 확인되었습니다.`,
+      evidenceSummary: evidences.map(e => `${e.publisher}: "${e.title}" (판정: ${e.rating})`).join(' / '),
+      confidence: '높음'
+    };
+  }
+
+  return {
+    verdict: '근거 부족(확인 불가)',
+    reason: '수집된 팩트체크 기사가 존재하지만 주장의 핵심 내용과 직접 부합하거나 반박하는지 명확하지 않습니다.',
+    evidenceSummary: evidences.map(e => `${e.publisher}: "${e.title}"`).join(' / '),
+    confidence: '보통'
+  };
 }
 
 module.exports = {
