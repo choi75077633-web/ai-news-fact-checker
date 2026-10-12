@@ -3,10 +3,13 @@ const router = express.Router();
 const { isUrl, scrapeArticle } = require('../services/scraper');
 const { extractClaims, compareClaimWithEvidence } = require('../services/gemini');
 const { searchFactChecks } = require('../services/factCheck');
+const { searchNaverNews } = require('../services/naverNews');
+const { detectClickbait } = require('../services/clickbait');
 
 /**
  * POST /api/check
- * 기사 URL 또는 텍스트를 받아 사실 확인을 수행하는 메인 엔드포인트
+ * 기사 URL 또는 텍스트를 받아 종합 사실 확인을 수행하는 메인 엔드포인트
+ * (Gemini 주장 추출 + Fact Check API + 네이버 뉴스 교차 검증 + 낚시성 제목 탐지)
  */
 router.post('/check', async (req, res) => {
   try {
@@ -47,22 +50,18 @@ router.post('/check', async (req, res) => {
         });
       }
 
-      // 첫 줄을 제목으로 추정하거나 본문 요약
       const lines = input.split('\n').map(l => l.trim()).filter(Boolean);
       title = lines.length > 1 ? lines[0] : '직접 입력한 텍스트';
       content = input.slice(0, 4000);
     }
 
-    // 2단계: Gemini를 통한 핵심 주장 1~3개 추출
-    let claimExtractionResult;
-    try {
-      claimExtractionResult = await extractClaims(title, content);
-    } catch (geminiErr) {
-      return res.status(500).json({
-        success: false,
-        error: `Gemini 핵심 주장 추출 실패: ${geminiErr.message}`
-      });
-    }
+    // 2단계: 낚시성 제목 탐지와 핵심 주장 추출을 병렬로 수행
+    const [clickbaitResult, claimExtractionResult] = await Promise.all([
+      detectClickbait(title, content),
+      extractClaims(title, content).catch(err => {
+        throw new Error(`Gemini 핵심 주장 추출 실패: ${err.message}`);
+      })
+    ]);
 
     const claims = claimExtractionResult.claims || [];
     const articleSummary = claimExtractionResult.articleSummary || '기사 요약 정보가 없습니다.';
@@ -76,21 +75,25 @@ router.post('/check', async (req, res) => {
           sourceUrl,
           isUrl: isInputUrl
         },
+        clickbait: clickbaitResult,
         disclaimer: '⚠️ AI 판단은 참고용이며 최종 확인은 직접 해야 합니다.',
         results: [],
-        message: '입력된 내용에서 검증 가능한 사실적 주장을 찾지 못했습니다. 의견이나 주관적 주장이 아닌 객관적 사건/통계가 포함된 글을 입력해 주세요.'
+        message: '입력된 내용에서 검증 가능한 사실적 주장을 찾지 못했습니다. 객관적 사건/통계가 포함된 글을 입력해 주세요.'
       });
     }
 
-    // 3단계 & 4단계: 각 주장별 Google Fact Check API 검색 + Gemini 대조 분석 병렬 실행
+    // 3단계 & 4단계: 각 주장별 Google Fact Check API + 네이버 뉴스 교차 검색 + Gemini 대조 분석 병렬 실행
     const verificationResults = await Promise.all(
       claims.map(async (claim, index) => {
         const query = claim.searchQuery || claim.claimText;
 
-        // 3-1. 실제 Fact Check Tools API 호출
-        const evidences = await searchFactChecks(query, 'ko');
+        // Fact Check API와 네이버 뉴스 검색을 병렬 호출
+        const [evidences, naverNewsData] = await Promise.all([
+          searchFactChecks(query, 'ko'),
+          searchNaverNews(query, 5) // 타 언론사 보도 최대 5건 조회
+        ]);
 
-        // 3-2. Gemini 대조 분석 (환각 방지 원칙 적용)
+        // Gemini 대조 분석 (환각 방지 원칙 적용)
         let analysis;
         try {
           analysis = await compareClaimWithEvidence(claim.claimText, evidences);
@@ -125,12 +128,13 @@ router.post('/check', async (req, res) => {
           reason: analysis.reason || '상세 사유가 제공되지 않았습니다.',
           evidenceSummary: analysis.evidenceSummary || '관련 근거 요약 없음',
           confidence: analysis.confidence || '보통',
-          sources: evidences // 실제 검증 기관명 및 원문 링크 목록
+          sources: evidences,          // Google Fact Check Tools API 결과
+          crossNews: naverNewsData     // 네이버 뉴스 타 언론사 보도 결과
         };
       })
     );
 
-    // 최종 결과 반환
+    // 최종 통합 응답 반환
     res.json({
       success: true,
       article: {
@@ -139,6 +143,7 @@ router.post('/check', async (req, res) => {
         sourceUrl,
         isUrl: isInputUrl
       },
+      clickbait: clickbaitResult,     // 낚시성 제목 탐지 분석 결과
       disclaimer: '⚠️ AI 판단은 참고용이며 최종 확인은 직접 해야 합니다.',
       results: verificationResults
     });
